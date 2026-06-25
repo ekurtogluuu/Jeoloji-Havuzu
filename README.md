@@ -42,10 +42,17 @@ Veri setini yeniden uretmek:
 python src/extract_units.py
 ```
 
+Bir formasyonu okunabilir metin olarak cagirmak:
+
+```bash
+python src/display_units.py "Aydos Formasyonu" --mode short
+python src/display_units.py "Aydos Formasyonu" --mode full
+```
+
 Soz dizimi kontrolu:
 
 ```bash
-python -m py_compile src/extract_units.py
+python -m py_compile src/extract_units.py src/display_units.py
 ```
 
 ## Ciktilar
@@ -57,6 +64,10 @@ python -m py_compile src/extract_units.py
 Mevcut veri seti 43 jeolojik birim icerir. Ciktilarda ham baslik, temizlenmis
 baslik, DOCX paragraf araligi, litoloji, dagilim, dokanak, kalinlik, fosil/yas,
 korelasyon ve kalite alanlari bulunur.
+
+`src/display_units.py`, bu ham alanlari dogrudan gostermek yerine sabit sirali
+ve okunabilir bir metne donusturur. Eksik alanlar bos baslik olarak verilmez;
+kalite notu olarak raporlanir.
 
 ## Kaynak Belgeler
 
