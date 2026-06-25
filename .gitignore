@@ -179,3 +179,9 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Project source documents
+# Keep large/copyright-sensitive source reports outside the public repository.
+*.pdf
+*.docx
+!README.md
