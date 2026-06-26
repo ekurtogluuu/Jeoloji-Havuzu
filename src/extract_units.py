@@ -37,6 +37,23 @@ FALSE_PREFIXES = (
 
 SECTION_RE = re.compile(r"^(?P<section>(?:[IVX]+\.)?(?:\d+\.)+\d*\.?)\s*")
 CODE_RE = re.compile(r"\((?P<code>[A-Za-z0-9ÇĞİÖŞÜçğıöşü]+)\)")
+
+# Üye alt bölümleri kaynakta "IV.4.2.1. Çukurçeşme Üyesi (Tçç): açıklama..." gibi
+# bölüm no + ad + (kod) + açıklama TEK paragrafta ve uzundur; normal başlık filtreleri
+# (uzunluk > 140, nokta ile biter) bunları eler. Bu kalıp, gövdesi satır içinde başlayan
+# üye başlığını yakalar (kod ZORUNLU; satır içi açıklama `rest` olarak alınır).
+MEMBER_HEADING_RE = re.compile(
+    r"^(?P<section>(?:[IVX]+\.)?(?:\d+\.)+\d*\.?)\s*"
+    r"(?P<name>[A-ZÇĞİÖŞÜ][^()]*?(?:Üyesi|Kireçtaşı Üyesi))\s*"
+    r"\((?P<code>[A-Za-z0-9ÇĞİÖŞÜçğıöşü]+)\)\s*[:\.]\s*(?P<rest>.*)$"
+)
+
+# Üye bloğunun içinde, formasyon kapsamına dönüldüğünü gösteren alt başlıklar; üye
+# gövdesi bunlarda kesilir (aksi halde son üye, formasyonun kapanış bölümlerini yutar).
+MEMBER_BODY_STOP_RE = re.compile(
+    r"^(?:Dokanak ili[şs]kileri|Fosil [Kk]apsam[ıi] ve Ya[şs]|"
+    r"Çökelme ortam[ıi]|Kal[ıi]nl[ıi]k ve Yay[ıi]l[ıi]m|Dene[şs]tirme)\b"
+)
 TOC_DOTS_RE = re.compile(r"\.{5,}\s*\d+\s*$")
 MULTISPACE_RE = re.compile(r"[ \t]+")
 
@@ -325,6 +342,24 @@ def find_candidate_headers(paragraphs):
         if clean.startswith("IV.1.1.") or clean.startswith("IV.1.2."):
             body_started = True
 
+        # Üye alt bölümü: satır içi başlık+gövde; normal uzunluk/nokta filtrelerini atlar.
+        if body_started and not clean.startswith(FALSE_PREFIXES) \
+                and not looks_like_front_matter_toc(clean):
+            member = MEMBER_HEADING_RE.match(clean)
+            if member:
+                name = re.sub(r"\s+", " ", member.group("name").strip(" ."))
+                candidates.append({
+                    "section_number": member.group("section").rstrip("."),
+                    "name": name,
+                    "code": member.group("code"),
+                    "raw_heading": raw,
+                    "clean_heading": clean,
+                    "inline_body": member.group("rest").strip(),
+                    "paragraph_pos": pos,
+                    "docx_paragraph_start": para["index"],
+                })
+                continue
+
         if not has_unit_term(raw) and not has_unit_term(clean):
             continue
 
@@ -378,6 +413,22 @@ def build_units(paragraphs, headers):
         start_pos = header["paragraph_pos"]
         end_pos = headers[i + 1]["paragraph_pos"] if i + 1 < len(headers) else len(paragraphs)
         body_paras = paragraphs[start_pos + 1 : end_pos]
+
+        inline = header.get("inline_body")
+        if inline:
+            # Üye gövdesi başlık paragrafında (kod ":" sonrası) başlar; öne ekle.
+            body_paras = [{
+                "index": header["docx_paragraph_start"],
+                "raw": inline,
+                "clean": normalize_text(inline),
+                "style": None,
+            }] + body_paras
+            # Formasyon kapanış alt başlığında (Dokanak/Fosil/Çökelme...) üye gövdesini kes.
+            for cut, bp in enumerate(body_paras):
+                if cut > 0 and MEMBER_BODY_STOP_RE.match(bp["clean"].strip()):
+                    body_paras = body_paras[:cut]
+                    break
+
         raw_block = "\n".join(p["raw"] for p in body_paras)
         clean_block = "\n".join(p["clean"] for p in body_paras)
         sections = extract_sections(body_paras)
